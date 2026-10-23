@@ -1,0 +1,25 @@
+# Python and local tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local evidence and solver output
+outputs/
+evidence/
+*.mph
+*.jnl
+*.log
+*.npz
+*.npy
+*.h5
+*.hdf5
+
+# Private/local source material
+private/
+papers/
+materials/
+credentials/
