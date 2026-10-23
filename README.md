@@ -27,7 +27,16 @@ each reproducible run.
 
 ## Development status
 
-The initial emulator implementation and tests are to be added by the execution
-agent under the project handoff plan. Until
-the independent gates pass, outputs are diagnostic and must not be labelled as
-accepted physical results.
+`ptc_emulator.lowdim` is the first landed module: the audited
+low-dimensional Floquet engine (monodromy by direct integration, Hill
+harmonic balance with differential-residual and harmonic-tail screening,
+Jury-consistent stability verdicts, and a renormalised direct-time-domain
+growth cross-check). The gate tests in `tests/` are the acceptance bar for
+any quantity this engine reports.
+
+Run the tests with:
+
+    PYTHONPATH=src python -m unittest discover -s tests -v
+
+Outputs of the current engine remain diagnostic until the independent gates
+of the project handoff pass.
