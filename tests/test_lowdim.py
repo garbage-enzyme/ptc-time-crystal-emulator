@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ptc_emulator import (  # noqa: E402
     growth_and_stability,
+    hill_candidates,
     hill_monodromy,
     monodromy,
     time_domain_growth,
@@ -55,7 +56,54 @@ class TestAnchors(unittest.TestCase):
         self.assertLessEqual(g["abs_trace"], 2.0)
         self.assertTrue(g["unstable_by_modulus"])
         self.assertGreater(g["abs_trace"], g["jury_boundary_1_plus_d"])
+        self.assertEqual(g["jury_status"], "IN_DOMAIN")
         self.assertEqual(g["verdict_by_jury"], "UNSTABLE")
+
+
+class TestJuryDomainGuards(unittest.TestCase):
+    """R1 regressions: the Jury form must never report STABLE outside its
+    passive real domain; max|mu| stays authoritative everywhere."""
+
+    def test_det_above_one_is_unstable_and_jury_withheld(self):
+        # Anti-damped oscillator (gamma < 0): det = exp(-2*gamma*T) > 1.
+        # Product of moduli > 1 forces max|mu| > 1; |tr| < 1 + det would
+        # wrongly read STABLE if the determinant restriction were dropped.
+        M, T = monodromy(1.0, -0.02, 0.0, 2.0)
+        g = growth_and_stability(M, T)
+        self.assertGreater(g["det"], 1.0)
+        self.assertTrue(g["unstable_by_modulus"])
+        self.assertGreater(g["growth_from_modulus"], 0.0)
+        self.assertEqual(g["jury_status"], "DET_ABOVE_ONE")
+        self.assertIsNone(g["verdict_by_jury"])
+        self.assertIsNone(g["unstable_by_jury"])
+
+    def test_complex_matrix_is_not_silently_stable(self):
+        # Complex monodromy: trace 0.6j must not be discarded to 0.
+        M = np.diag([1.1j, -0.5j])
+        g = growth_and_stability(M, T=2.0 * np.pi / 1.5)
+        self.assertAlmostEqual(g["max_modulus"], 1.1, places=12)
+        self.assertTrue(g["unstable_by_modulus"])
+        self.assertGreater(
+            g["imaginary_part_discarded_from_trace_and_det"], 0.5)
+        self.assertEqual(g["jury_status"], "NONREAL_MATRIX")
+        self.assertIsNone(g["verdict_by_jury"])
+
+    def test_nonpositive_det_withholds_jury(self):
+        M2 = np.diag([2.0, -0.5])                 # det = -1 < 0, max|mu| = 2
+        g = growth_and_stability(M2, T=1.0)
+        self.assertTrue(g["unstable_by_modulus"])
+        self.assertEqual(g["jury_status"], "NONPOSITIVE_DET")
+        self.assertIsNone(g["verdict_by_jury"])
+
+    def test_input_guards(self):
+        with self.assertRaises(ValueError):
+            growth_and_stability(np.eye(3), 1.0)
+        with self.assertRaises(ValueError):
+            growth_and_stability(np.array([[np.nan, 0.0], [0.0, 1.0]]), 1.0)
+        with self.assertRaises(ValueError):
+            growth_and_stability(np.eye(2), 0.0)
+        with self.assertRaises(ValueError):
+            growth_and_stability(np.eye(2), -1.0)
 
 
 class TestHill(unittest.TestCase):
@@ -101,3 +149,21 @@ class TestTimeDomain(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestRawCandidateFields(unittest.TestCase):
+    """R4 evidence contract: candidates expose their harmonic coefficients."""
+
+    def test_coeffs_and_harmonics_present(self):
+        cands, k, evals = hill_candidates(W0, G, 0.05, 2.18 * W0, 4)
+        self.assertEqual(len(cands), 2 * (2 * 4 + 1))
+        for c in cands:
+            self.assertEqual(c["coeffs"].shape, (9,))
+            self.assertTrue(np.all(np.isfinite(c["coeffs"].view(float))))
+            self.assertEqual(list(c["harmonics"]), list(range(-4, 5)))
+            # consistency: state0 reconstructed from coeffs + Lambda
+            q0 = c["coeffs"].sum()
+            qd0 = ((c["Lambda"] + 1j * (2.18 * W0) * c["harmonics"])
+                   * c["coeffs"]).sum()
+            self.assertAlmostEqual(abs(q0 - c["state0"][0]), 0.0, places=12)
+            self.assertAlmostEqual(abs(qd0 - c["state0"][1]), 0.0, places=12)

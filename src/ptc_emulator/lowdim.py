@@ -83,15 +83,30 @@ def monodromy(omega0, gamma, m, omega_m, rtol=1e-13, atol=1e-15):
 
 
 def growth_and_stability(M, T):
-    """Growth rate (two routes, cross-checked) and the Jury stability verdict.
+    """Growth rate (two routes, cross-checked) with a DOMAIN-GUARDED Jury test.
 
-    The two growth routes -- max Re log(mu)/T and ln max|mu|/T -- are equal
-    in exact arithmetic; a disagreement beyond tolerance indicates an
-    eigenvalue/conditioning problem, not physics. M may arrive complex-dtyped
-    (Hill pairings are built from complex eigenvector combinations); the
-    trace/determinant of a real matrix are real by construction, so any
-    discarded imaginary part is measured and reported, never assumed zero.
+    The multiplier modulus is authoritative everywhere: growth is read from
+    max|mu| (cross-checked against max Re log(mu)/T; they are equal in exact
+    arithmetic, so disagreement flags an eigenvalue problem, not physics).
+
+    The Jury form |tr M| < 1 + det M is the Schur condition for a REAL 2x2
+    monodromy with 0 < det < 1 only. Outside that domain it is not applied:
+    a complex-dtyped M (Hill pairings build complex combinations) must not
+    have its trace/det imaginary parts silently discarded, and det > 1
+    already implies max|mu| > 1 (product of moduli = |det|), while det <= 0
+    or non-finite input is outside the passive real domain entirely.
+    `jury_status` reports why; `verdict_by_jury`/`unstable_by_jury` are
+    None unless jury_status == "IN_DOMAIN".
     """
+    M = np.asarray(M)
+    if M.shape != (2, 2):
+        raise ValueError("M must be 2x2, got shape %s" % (M.shape,))
+    if not np.all(np.isfinite(M.view(float) if np.iscomplexobj(M)
+                               else M.astype(float))):
+        raise ValueError("M contains non-finite entries")
+    if not np.isfinite(T) or T <= 0.0:
+        raise ValueError("T must be finite and positive, got %r" % (T,))
+
     mu = np.linalg.eigvals(M)
     lam = np.log(mu.astype(complex)) / T
     growth_from_log = float(max(x.real for x in lam))
@@ -102,12 +117,21 @@ def growth_and_stability(M, T):
     d_c = complex(np.linalg.det(M))
     tr = float(tr_c.real)
     d = float(d_c.real)
+    # measured, never assumed: the largest imaginary part that WOULD be
+    # discarded by reading trace/det as real
     imaginary_part_discarded = float(max(abs(tr_c.imag), abs(d_c.imag)))
+    imag_tolerance = 1e-10 * (1.0 + abs(tr) + abs(d))
 
-    if d <= 0.0:
-        verdict = "OUT_OF_JURY_DOMAIN"
-        boundary = None
+    if imaginary_part_discarded > imag_tolerance:
+        jury_status = "NONREAL_MATRIX"
+    elif d <= 0.0:
+        jury_status = "NONPOSITIVE_DET"
+    elif d > 1.0:
+        jury_status = "DET_ABOVE_ONE"
     else:
+        jury_status = "IN_DOMAIN"
+
+    if jury_status == "IN_DOMAIN":
         boundary = 1.0 + d
         if abs(tr) < boundary:
             verdict = "STABLE"
@@ -115,6 +139,9 @@ def growth_and_stability(M, T):
             verdict = "BOUNDARY"
         else:
             verdict = "UNSTABLE"
+    else:
+        boundary = None
+        verdict = None
 
     discriminant = tr * tr - 4.0 * d
     return {
@@ -127,9 +154,10 @@ def growth_and_stability(M, T):
         "abs_trace": abs(tr),
         "det": d,
         "imaginary_part_discarded_from_trace_and_det": imaginary_part_discarded,
+        "jury_status": jury_status,
         "jury_boundary_1_plus_d": boundary,
         "verdict_by_jury": verdict,
-        "unstable_by_jury": (verdict == "UNSTABLE") if boundary is not None else None,
+        "unstable_by_jury": (verdict == "UNSTABLE") if verdict is not None else None,
         "discriminant": discriminant,
         "multipliers_are_real": bool(discriminant >= 0.0),
     }
@@ -202,6 +230,8 @@ def hill_candidates(omega0, gamma, m, omega_m, N):
         out.append({
             "index": int(i),
             "Lambda": complex(Lam),
+            "coeffs": np.array(c, dtype=complex, copy=True),
+            "harmonics": np.array(k, dtype=int, copy=True),
             "diff_residual": diff_resid,
             "tail_ratio": tail,
             "state0": np.array([q0, qd0], dtype=complex),
