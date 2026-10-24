@@ -90,19 +90,25 @@ def growth_and_stability(M, T):
     arithmetic, so disagreement flags an eigenvalue problem, not physics).
 
     The Jury form |tr M| < 1 + det M is the Schur condition for a REAL 2x2
-    monodromy with 0 < det < 1 only. Outside that domain it is not applied:
-    a complex-dtyped M (Hill pairings build complex combinations) must not
-    have its trace/det imaginary parts silently discarded, and det > 1
-    already implies max|mu| > 1 (product of moduli = |det|), while det <= 0
-    or non-finite input is outside the passive real domain entirely.
-    `jury_status` reports why; `verdict_by_jury`/`unstable_by_jury` are
-    None unless jury_status == "IN_DOMAIN".
+    monodromy with 0 < det <= 1 only; inside that domain "STABLE" means
+    BOUNDED / NON-GROWING (all |mu| <= 1), NOT strictly decaying — strict
+    decay additionally requires det < 1, and det == 1 is the lossless
+    marginal boundary (e.g. a pure rotation: zero growth, IN_DOMAIN,
+    STABLE). Outside the domain the form is not applied: a complex-dtyped M
+    (Hill pairings build complex combinations) must not have its trace/det
+    imaginary parts silently discarded, det > 1 already implies
+    max|mu| > 1 (product of moduli = |det|), and det <= 0 or non-finite
+    input is outside the passive real domain entirely. `jury_status`
+    reports why; `verdict_by_jury`/`unstable_by_jury` are None unless
+    jury_status == "IN_DOMAIN".
     """
     M = np.asarray(M)
     if M.shape != (2, 2):
         raise ValueError("M must be 2x2, got shape %s" % (M.shape,))
-    if not np.all(np.isfinite(M.view(float) if np.iscomplexobj(M)
-                               else M.astype(float))):
+    # layout-independent finite check: real/imag parts exist for any dtype
+    # (a .view(float) reinterpretation breaks on Fortran/non-contiguous
+    # complex input, which is a valid matrix in every other respect)
+    if not (np.all(np.isfinite(np.real(M))) and np.all(np.isfinite(np.imag(M)))):
         raise ValueError("M contains non-finite entries")
     if not np.isfinite(T) or T <= 0.0:
         raise ValueError("T must be finite and positive, got %r" % (T,))

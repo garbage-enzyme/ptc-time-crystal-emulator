@@ -167,3 +167,44 @@ class TestRawCandidateFields(unittest.TestCase):
                    * c["coeffs"]).sum()
             self.assertAlmostEqual(abs(q0 - c["state0"][0]), 0.0, places=12)
             self.assertAlmostEqual(abs(qd0 - c["state0"][1]), 0.0, places=12)
+
+
+class TestLayoutIndependentFiniteCheck(unittest.TestCase):
+    """B2 regressions: valid complex matrices must be accepted regardless of
+    memory layout; non-finite input stays rejected."""
+
+    def test_fortran_contiguous_complex_accepted(self):
+        M = np.asfortranarray(np.eye(2, dtype=complex) * 0.9)
+        g = growth_and_stability(M, T=1.7)
+        self.assertAlmostEqual(g["max_modulus"], 0.9, places=12)
+        self.assertTrue(g["unstable_by_modulus"] is False)
+
+    def test_noncontiguous_complex_accepted(self):
+        base = np.zeros((3, 3), dtype=complex)
+        base[0, 0] = 0.9
+        base[2, 2] = 0.9
+        M = base[::2, ::2]  # strided on both axes, equals 0.9*I
+        self.assertFalse(M.flags["C_CONTIGUOUS"])
+        g = growth_and_stability(M, T=1.7)
+        self.assertAlmostEqual(g["max_modulus"], 0.9, places=12)
+
+    def test_c_contiguous_complex_equivalent(self):
+        g1 = growth_and_stability(np.eye(2, dtype=complex) * 0.9, T=1.7)
+        g2 = growth_and_stability(
+            np.asfortranarray(np.eye(2, dtype=complex) * 0.9), T=1.7)
+        self.assertEqual(g1["max_modulus"], g2["max_modulus"])
+
+    def test_nonfinite_still_rejected(self):
+        with self.assertRaises(ValueError):
+            growth_and_stability(np.array([[complex(np.nan, 0), 0],
+                                           [0, 1.0]]), 1.0)
+
+    def test_lossless_rotation_d1_documented_boundary(self):
+        # det == 1 marginal boundary: bounded, zero growth, IN_DOMAIN,
+        # STABLE means non-growing (documented, not strict decay).
+        M = np.array([[0.0, -1.0], [1.0, 0.0]])  # pure rotation, det = 1
+        g = growth_and_stability(M, T=2.0 * np.pi)
+        self.assertAlmostEqual(g["max_modulus"], 1.0, places=12)
+        self.assertFalse(g["unstable_by_modulus"])
+        self.assertEqual(g["jury_status"], "IN_DOMAIN")
+        self.assertEqual(g["verdict_by_jury"], "STABLE")
