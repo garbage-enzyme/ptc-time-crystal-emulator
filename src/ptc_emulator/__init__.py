@@ -28,8 +28,21 @@ from .drude import (
     stationary_ade_rhs,
     stationary_chi,
 )
+from .drude_maxwell import (
+    augmented_rhs,
+    direct_time_growth,
+    drude_dispersion_roots,
+    harmonic_matrix,
+    match_sets,
+    monodromy_augmented,
+    multipliers_from_harmonic,
+    neutral_direction,
+    project_out_neutral,
+    solve_augmented,
+    static_matrix,
+)
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "MODULATION_FORM",
@@ -49,5 +62,16 @@ __all__ = [
     "solve_memory_state",
     "stationary_ade_rhs",
     "stationary_chi",
+    "augmented_rhs",
+    "direct_time_growth",
+    "drude_dispersion_roots",
+    "harmonic_matrix",
+    "match_sets",
+    "monodromy_augmented",
+    "multipliers_from_harmonic",
+    "neutral_direction",
+    "project_out_neutral",
+    "solve_augmented",
+    "static_matrix",
     "__version__",
 ]

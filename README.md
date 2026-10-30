@@ -43,6 +43,20 @@ demonstrate that omitting the `dlog(wp2)/dt` term is a different model.
 Gates: ODE vs kernel quadrature (<=1e-6), literal vs factorized kernel,
 analytic stationary response, causality and bounded residual-DC semantics.
 
+`ptc_emulator.drude_maxwell` (since 0.3.0) couples those states to Maxwell
+at fixed real k: augmented 4-state integration (D, B, S, P), one-period
+monodromy, the static Drude dispersion cubic, an independently derived
+Floquet/Hill harmonic truncation whose multipliers are extracted from the
+central strip (cluster averaging is deliberately avoided — it mixes
+edge-polluted ladder copies), direct-time growth with per-period
+renormalization, and the exact energy identity
+dw/dt = 0.5 wp2'(t)|S|^2 - gamma(t) wp2(t)|S|^2 (modulation work minus
+dissipation; P is bookkeeping and carries no independent energy, and the
+residual dc polarization is the exactly neutral direction (D,0,0,P=D)).
+Gates: static sets vs cubic, |det M| = exp(-int gamma), harmonic vs
+monodromy multiplier sets with a convergence ladder, direct-time vs
+multiplier growth, energy closure and no-modulation energy decay.
+
 Run the tests with:
 
     PYTHONPATH=src python -m unittest discover -s tests -v
