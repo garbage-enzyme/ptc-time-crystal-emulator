@@ -135,6 +135,24 @@ def test_direct_time_growth_matches_multipliers():
     assert abs(rate - rate_expected) <= 1e-8
 
 
+def test_harmonic_combined_with_gamma_phase():
+    """Regression for the ladder-diagonal sign: with a PHASED gamma pulse
+    (phi != 0) combined with wp2 modulation, a wrong sign in the
+    i*n*Omega block diagonal is no longer equivalent to the correct
+    assembly under n -> -n relabelling, and shows up as a flat ~3e-4
+    multiplier error (single-real-cosine cases are sign-blind because
+    A+ = A- there)."""
+    k, m, Om, a, ph = 1.0, 0.1, 4.0, 0.02, 0.5
+    T = 2 * np.pi / Om
+    wp2 = _cos_mod(1.0, m, Om)
+    gam = _cos_mod(0.1, a, Om, ph)
+    M = dm.monodromy_augmented(T, k, EPS_INF, wp2, gam)
+    gp1 = 0.5 * a * np.exp(1j * ph)
+    H = dm.harmonic_matrix(k, EPS_INF, 1.0, 0.5 * m, 0.1, gp1, Om, 8)
+    mult, _lam = dm.multipliers_from_harmonic(H, Om, T)
+    assert dm.match_sets(np.linalg.eigvals(M), mult) <= 1e-8
+
+
 def test_match_sets_permutation_invariance():
     a = np.array([1 + 2j, 3 - 1j, 0.5 + 0j])
     assert dm.match_sets(a, a[[2, 0, 1]]) == 0.0

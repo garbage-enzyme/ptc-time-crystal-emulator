@@ -161,8 +161,10 @@ def harmonic_matrix(k, eps_inf, wp2_dc, wp2_p1, gamma_dc, gamma_p1,
     H = np.zeros((size, size), dtype=complex)
     for bi, n in enumerate(range(-N, N + 1)):
         d = bi * 4
-        # lambda c_n = (A0 - i n Omega) c_n + A+ c_{n+1} + A- c_{n-1}
-        H[d:d + 4, d:d + 4] = A0 - 1j * n * Omega * np.eye(4)
+        # lambda c_n = (A0 + i n Omega) c_n + A+ c_{n+1} + A- c_{n-1}
+        # (from d/dt[e^{lam t} c_n e^{-i n Om t}] = (lam - i n Om),
+        #  moved to the right-hand side with +i n Om)
+        H[d:d + 4, d:d + 4] = A0 + 1j * n * Omega * np.eye(4)
         if bi + 1 < n_blocks:
             H[d:d + 4, d + 4:d + 8] = Ap
         if bi - 1 >= 0:
