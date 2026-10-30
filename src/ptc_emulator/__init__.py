@@ -17,8 +17,19 @@ from .lowdim import (
     monodromy,
     time_domain_growth,
 )
+from .drude import (
+    Cumulative,
+    drude_history,
+    kernel_chi_literal,
+    memory_state_rhs,
+    pulse_envelope,
+    solve_j_log_form,
+    solve_memory_state,
+    stationary_ade_rhs,
+    stationary_chi,
+)
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "MODULATION_FORM",
@@ -29,5 +40,14 @@ __all__ = [
     "hill_monodromy",
     "monodromy",
     "time_domain_growth",
+    "Cumulative",
+    "drude_history",
+    "kernel_chi_literal",
+    "memory_state_rhs",
+    "pulse_envelope",
+    "solve_j_log_form",
+    "solve_memory_state",
+    "stationary_ade_rhs",
+    "stationary_chi",
     "__version__",
 ]

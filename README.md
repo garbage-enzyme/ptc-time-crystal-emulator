@@ -34,6 +34,15 @@ Jury-consistent stability verdicts, and a renormalised direct-time-domain
 growth cross-check). The gate tests in `tests/` are the acceptance bar for
 any quantity this engine reports.
 
+`ptc_emulator.drude` (since 0.2.0) adds causal time-varying Drude response:
+a memory-state `S/P` realization (Sdot = E - gamma S; Pdot = wp2 S),
+factorized composite-Gauss quadrature of the causal two-time kernel, a
+literal kernel evaluator, the equivalent `dlog(wp2)` current form, the
+static Drude susceptibility, and the stationary-ADE variant kept only to
+demonstrate that omitting the `dlog(wp2)/dt` term is a different model.
+Gates: ODE vs kernel quadrature (<=1e-6), literal vs factorized kernel,
+analytic stationary response, causality and bounded residual-DC semantics.
+
 Run the tests with:
 
     PYTHONPATH=src python -m unittest discover -s tests -v
