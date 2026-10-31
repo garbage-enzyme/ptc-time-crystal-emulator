@@ -28,6 +28,17 @@ from .drude import (
     stationary_ade_rhs,
     stationary_chi,
 )
+from .drude_slab import (
+    absorption_volumetric,
+    dc_limit,
+    drude_chi,
+    drude_epsilon,
+    fresnel_interface_reflection,
+    slab_admittance,
+    slab_admittance_y,
+    slab_boundary_solve,
+    slab_k,
+)
 from .drude_maxwell import (
     augmented_rhs,
     direct_time_growth,
@@ -42,7 +53,7 @@ from .drude_maxwell import (
     static_matrix,
 )
 
-__version__ = "0.3.3"
+__version__ = "0.4.0"
 
 __all__ = [
     "MODULATION_FORM",
@@ -73,5 +84,14 @@ __all__ = [
     "project_out_neutral",
     "solve_augmented",
     "static_matrix",
+    "absorption_volumetric",
+    "dc_limit",
+    "drude_chi",
+    "drude_epsilon",
+    "fresnel_interface_reflection",
+    "slab_admittance",
+    "slab_admittance_y",
+    "slab_boundary_solve",
+    "slab_k",
     "__version__",
 ]
