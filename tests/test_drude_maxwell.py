@@ -128,11 +128,32 @@ def test_direct_time_growth_matches_multipliers():
     wp2 = _cos_mod(1.0, m, Om)
     gam = _const(0.1)
     M = dm.monodromy_augmented(T, k, EPS_INF, wp2, gam)
-    rate_expected = float(np.max(np.log(np.abs(
-        np.linalg.eigvals(M)))) / T)
-    rate, samples = dm.direct_time_growth(T, 90, k, EPS_INF, wp2, gam)
+    mults = np.linalg.eigvals(M)
+    rate_expected = float(np.max(np.log(np.abs(mults))) / T)
+    rate, samples, leader = dm.direct_time_growth(T, 90, k, EPS_INF,
+                                                  wp2, gam)
     assert len(samples) == 90
     assert abs(rate - rate_expected) <= 1e-8
+
+
+def test_direct_time_physical_leader_excludes_neutral():
+    """M2-F1 regression: with the neutral multiplier (exactly 1) largest,
+    the plain leader integrates the ZERO-ENERGY neutral mode and reports
+    a self-consistent ~0 rate; exclude_neutral must instead track the
+    leading PHYSICAL multiplier (rate = log|max physical|/T)."""
+    k, m, Om = 1.0, 0.4, 2.0
+    T = 2 * np.pi / Om
+    wp2 = _cos_mod(1.0, m, Om)
+    gam = _const(0.1)
+    M = dm.monodromy_augmented(T, k, EPS_INF, wp2, gam)
+    mults = np.sort(np.abs(np.linalg.eigvals(M)))[::-1]
+    phys = mults[mults < 1.0 - 1e-9][0]     # largest non-neutral modulus
+    rate_expected = float(np.log(phys) / T)
+    rate, samples, leader = dm.direct_time_growth(
+        T, 90, k, EPS_INF, wp2, gam, exclude_neutral=True)
+    assert abs(rate - rate_expected) <= 1e-8
+    assert abs(abs(leader) - phys) <= 1e-9
+    assert rate < -1e-3                     # physical mode actually decays
 
 
 def test_harmonic_combined_with_gamma_phase():

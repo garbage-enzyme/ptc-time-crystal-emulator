@@ -42,7 +42,7 @@ from .drude_maxwell import (
     static_matrix,
 )
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 __all__ = [
     "MODULATION_FORM",

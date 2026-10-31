@@ -211,26 +211,49 @@ def multipliers_from_harmonic(H, Omega, T, n_states=4):
 
 
 def direct_time_growth(T, n_periods, k, eps_inf, wp2_fn, gamma_fn,
-                       discard=12, rtol=1e-12, atol=1e-14):
-    """Direct-time growth from the leading monodromy eigenvector with
-    per-period renormalization (production protocol: n_periods samples,
-    first `discard` dropped). Each sample records the log norm grown in
-    one period from a unit-norm start, so the growth rate is the mean
-    kept increment divided by T. Returns (growth_rate, samples) with
-    samples = [(j, t_j, log_norm)]."""
+                       discard=12, rtol=1e-12, atol=1e-14,
+                       exclude_neutral=False):
+    """Direct-time growth from a monodromy eigenvector with per-period
+    renormalization (production protocol: n_periods samples, first
+    `discard` dropped). Each sample records the log norm grown in one
+    period from a unit-norm start, so the growth rate is the mean kept
+    increment divided by T. Returns (growth_rate, samples,
+    leader_multiplier) with samples = [(j, t_j, log_norm)].
+
+    With ``exclude_neutral=True`` the leader is the largest-modulus
+    NON-NEUTRAL (physical) multiplier — the neutral polarization mode
+    (multiplier exactly 1, zero energy) is skipped by eigenvector
+    overlap — and the per-period renormalization projects the neutral
+    direction out, so a decaying grid tests physical-mode evolution
+    instead of a self-consistent neutral zero."""
     M = monodromy_augmented(T, k, eps_inf, wp2_fn, gamma_fn,
                             rtol=rtol, atol=atol)
     vals, vecs = np.linalg.eig(M)
-    lead = int(np.argmax(np.abs(vals)))
+    order = np.argsort(-np.abs(vals))
+    n_hat = neutral_direction()
+    lead = int(order[0])
+    if exclude_neutral:
+        for cand in order:
+            v_c = vecs[:, int(cand)]
+            overlap = abs(np.vdot(n_hat, v_c)) / np.linalg.norm(v_c)
+            if overlap < 0.5:
+                lead = int(cand)
+                break
     v = vecs[:, lead]
     v = v / np.linalg.norm(v)
+    if exclude_neutral:
+        v = v - np.vdot(n_hat, v) * n_hat
+        v = v / np.linalg.norm(v)
     samples = []
     for j in range(n_periods):
         y = solve_augmented(np.array([0.0, T]), k, eps_inf,
                             wp2_fn, gamma_fn, v, rtol=rtol, atol=atol)
-        log_norm = float(np.log(np.linalg.norm(y[:, -1])))
+        end = y[:, -1]
+        if exclude_neutral:
+            end = end - np.vdot(n_hat, end) * n_hat
+        log_norm = float(np.log(np.linalg.norm(end)))
         samples.append((j, (j + 1) * T, log_norm))
-        v = y[:, -1] / np.linalg.norm(y[:, -1])
+        v = end / np.linalg.norm(end)
     kept = samples[discard:]
     rate = float(np.mean([s[2] for s in kept]) / T)
-    return rate, samples
+    return rate, samples, complex(vals[lead])
