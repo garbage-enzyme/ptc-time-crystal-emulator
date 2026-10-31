@@ -91,6 +91,10 @@ def dc_limit(d, wp2, gamma):
     the thin-sheet sub-case of which (kappa -> infinity, thick/good
     conductor) recovers r -> -1. With wp2 = 0, kappa = 0 gives the
     matched values r = 0, t = 1."""
+    if gamma == 0.0:
+        # lossless plasma at DC: kappa -> infinity (perfect-conductor
+        # sub-case) gives full reflection
+        return -1.0 + 0.0j, 0.0 + 0.0j
     kappa = d * wp2 / gamma
     return -kappa / (2.0 + kappa) + 0.0j, 2.0 / (2.0 + kappa) + 0.0j
 
@@ -181,12 +185,22 @@ def absorption_volumetric(omega, a_p, a_m, k, d, wp2, gamma,
     p = np.real(k)
     q = np.imag(k)
     with np.errstate(divide="ignore", invalid="ignore"):
-        term1 = (np.abs(a_p) ** 2) * (1.0 - np.exp(-2.0 * q * d)) \
-            / (2.0 * q)
-        term2 = (np.abs(a_m) ** 2) * (np.exp(2.0 * q * d) - 1.0) \
-            / (2.0 * q)
+        def _eint(sgn):
+            # int_0^d e^{sgn*2qz} dz = (e^{sgn 2 q d} - 1)/(sgn 2 q),
+            # with the q -> 0 limit d (lossless propagating band, q = 0)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                return np.where(np.abs(q) < 1e-14, d,
+                                (np.exp(sgn * 2.0 * q * d) - 1.0)
+                                / (sgn * 2.0 * q))
+        term1 = (np.abs(a_p) ** 2) * _eint(-1.0)
+        term2 = (np.abs(a_m) ** 2) * _eint(+1.0)
         c = a_p * np.conj(a_m)
-        term3 = 2.0 * np.real(c * (np.exp(2j * p * d) - 1.0) / (2j * p))
+        # p = 0 exactly (lossless evanescent band): e^{2ipz} = 1 and the
+        # cross-term integral is the limit 2 Re(c) * d
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = np.where(np.abs(p) < 1e-14, d,
+                             (np.exp(2j * p * d) - 1.0) / (2j * p))
+        term3 = 2.0 * np.real(c * ratio)
         vol = chi_im * om * 0.5 * (term1 + term2 + term3)
     vol = np.where(om == 0.0, 0.0, np.real(vol))
     return vol / (0.5 * float(np.real(np.sqrt(eps_b + 0j))))
