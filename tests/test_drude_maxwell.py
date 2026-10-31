@@ -156,6 +156,31 @@ def test_direct_time_physical_leader_excludes_neutral():
     assert rate < -1e-3                     # physical mode actually decays
 
 
+def test_physical_leader_picks_damped_material_mode():
+    """The largest PHYSICAL multiplier can be the overdamped material mode
+    whose eigenvector overlaps the neutral direction heavily; the leader
+    selection must skip only exactly-neutral pairs (multiplier 1 AND
+    full neutral overlap), not S/P-dominated physical modes (caught as a
+    2e-2 rate mismatch at k=0.5)."""
+    k, m, Om = 0.5, 0.1, 2.0
+    T = 2 * np.pi / Om
+    wp2 = _cos_mod(1.0, m, Om)
+    gam = _const(0.1)
+    M = dm.monodromy_augmented(T, k, EPS_INF, wp2, gam)
+    vals, vecs = np.linalg.eig(M)
+    n_hat = dm.neutral_direction()
+    phys = []
+    for mu, v in zip(vals, vecs.T):
+        ov = abs(np.vdot(n_hat, v / np.linalg.norm(v)))
+        if not (abs(mu - 1.0) <= 1e-9 and ov >= 1.0 - 1e-9):
+            phys.append(abs(mu))
+    rate_expected = float(np.log(max(phys)) / T)
+    rate, samples, leader = dm.direct_time_growth(
+        T, 90, k, EPS_INF, wp2, gam, exclude_neutral=True)
+    assert abs(rate - rate_expected) <= 1e-8
+    assert abs(abs(leader) - max(phys)) <= 1e-9
+
+
 def test_harmonic_combined_with_gamma_phase():
     """Regression for the ladder-diagonal sign: with a PHASED gamma pulse
     (phi != 0) combined with wp2 modulation, a wrong sign in the

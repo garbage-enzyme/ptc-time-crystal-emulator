@@ -233,10 +233,16 @@ def direct_time_growth(T, n_periods, k, eps_inf, wp2_fn, gamma_fn,
     n_hat = neutral_direction()
     lead = int(order[0])
     if exclude_neutral:
+        # neutral iff the multiplier is exactly 1 AND the eigenvector is
+        # the neutral direction; a strongly damped PHYSICAL material mode
+        # (S/P-dominated eigenvector) can overlap the neutral direction
+        # heavily and must NOT be skipped
         for cand in order:
+            mu = vals[int(cand)]
             v_c = vecs[:, int(cand)]
-            overlap = abs(np.vdot(n_hat, v_c)) / np.linalg.norm(v_c)
-            if overlap < 0.5:
+            ov = abs(np.vdot(n_hat, v_c / np.linalg.norm(v_c)))
+            is_neutral = abs(mu - 1.0) <= 1e-9 and ov >= 1.0 - 1e-9
+            if not is_neutral:
                 lead = int(cand)
                 break
     v = vecs[:, lead]
