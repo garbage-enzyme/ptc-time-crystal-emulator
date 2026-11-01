@@ -40,6 +40,14 @@ from .drude_slab import (
     slab_boundary_solve,
     slab_k,
 )
+from .drude_slab_mod import (
+    channel_frequencies,
+    mixing_matrix,
+    modulated_energy_terms,
+    modulated_slab_channels,
+    project_sidebands,
+    time_domain_slab,
+)
 from .drude_maxwell import (
     augmented_rhs,
     direct_time_growth,
@@ -54,7 +62,7 @@ from .drude_maxwell import (
     static_matrix,
 )
 
-__version__ = "0.4.3"
+__version__ = "0.5.0"
 
 __all__ = [
     "MODULATION_FORM",
@@ -95,5 +103,11 @@ __all__ = [
     "slab_admittance_y",
     "slab_boundary_solve",
     "slab_k",
+    "channel_frequencies",
+    "mixing_matrix",
+    "modulated_energy_terms",
+    "modulated_slab_channels",
+    "project_sidebands",
+    "time_domain_slab",
     "__version__",
 ]
