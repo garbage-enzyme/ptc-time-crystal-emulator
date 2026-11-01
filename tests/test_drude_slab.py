@@ -123,3 +123,45 @@ def test_conditioning_bounded():
     for d in (0.5, 1.0, 5.0, 50.0):
         _r, _t, _ap, _am, cond = ds.slab_boundary_solve(om, d, WP2, GAMMA)
         assert np.max(cond) < 1e8
+
+
+def test_dc_dissipation_consistent_with_sheet_scattering():
+    """M3-F1: the DC channel must be energetically consistent — the
+    volumetric dissipation at w = 0 equals the sheet-scattering
+    absorption 1 - R - T = 4 kappa/(2+kappa)^2, and shrinking
+    frequencies converge to it monotonically from both signs."""
+    d, kappa = 1.0, 10.0
+    r0, t0, e_in, a0 = ds.dc_sheet(d, WP2, GAMMA)
+    assert abs(a0 - 4.0 * kappa / (2.0 + kappa) ** 2) <= 1e-15
+    assert abs((1 - abs(r0) ** 2 - abs(t0) ** 2) - a0) <= 1e-15
+    assert abs(e_in - t0) <= 1e-15
+    # omega = 0 grid point returns the analytic limit
+    om0 = np.array([0.0])
+    _r, _t, ap, am, _c = ds.slab_boundary_solve(om0, d, WP2, GAMMA)
+    k0 = ds.slab_k(om0, WP2, GAMMA)
+    assert abs(ds.absorption_volumetric(om0, ap, am, k0, d, WP2, GAMMA)[0]
+               - a0) <= 1e-15
+    # shrinking positive and negative frequencies converge monotonically
+    errs = []
+    for w in (1e-3, 1e-4, 1e-5):
+        for sgn in (+1.0, -1.0):
+            omw = np.array([sgn * w])
+            _r, _t, ap, am, _c = ds.slab_boundary_solve(
+                omw, d, WP2, GAMMA)
+            kw = ds.slab_k(omw, WP2, GAMMA)
+            a = ds.absorption_volumetric(omw, ap, am, kw, d, WP2, GAMMA)[0]
+            r_w, t_w = ds.slab_admittance(omw, d, WP2, GAMMA)
+            assert abs(a - (1 - abs(r_w[0]) ** 2 - abs(t_w[0]) ** 2)) \
+                <= 1e-9
+            errs.append(abs(a - a0))
+    assert errs[0] > errs[1] > errs[2] and errs[-1] <= 1e-6
+
+
+def test_dc_degeneracies():
+    # lossless plasma: perfect-conductor sub-case, no dissipation
+    r0, t0, e0, a0 = ds.dc_sheet(1.0, WP2, 0.0)
+    assert (r0, t0, e0, a0) == (-1.0 + 0j, 0.0 + 0j, 0.0 + 0j, 0.0)
+    # matched sheet: kappa = 0
+    r0, t0, e0, a0 = ds.dc_sheet(1.0, 0.0, GAMMA)
+    assert abs(r0) <= 1e-15 and abs(t0 - 1.0) <= 1e-15 \
+        and abs(e0 - 1.0) <= 1e-15 and a0 == 0.0

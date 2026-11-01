@@ -10,9 +10,18 @@ outside the slab (background eps_b = 1 in normalized vacuum, c0 = eps0
 k(w) = w sqrt(eps(w)) on the principal branch (Im k >= 0 for w > 0,
 decaying into the slab), k(-w) = -conj(k(w)). The admittance Y = k/w is
 the REMOVABLE form of sqrt(eps): Y_s(w) = sqrt(eps(w)) directly, which
-stays finite where k -> 0 and diverges analytically at w = 0 (the DC
-channel: Y_s -> infinity, r -> -1, t -> 0, R -> 1). Tangential E and B
-are continuous at both interfaces with B = Y E for a forward wave.
+stays finite where k -> 0 and diverges analytically at w = 0. The DC
+channel (w -> 0) is the RESISTIVE-SHEET limit — the slab is always
+electrically thin (k d ~ sqrt(w) -> 0) while Y_s ~ w^{-1/2} diverges,
+competing through kappa = d wp2/gamma — with complete flux bookkeeping
+
+    r(0) = -kappa/(2+kappa),  t(0) = 2/(2+kappa),
+    E_inside(0) = 2/(2+kappa) (constant),  A(0) = 4 kappa/(2+kappa)^2,
+
+of which r -> -1, t -> 0, A -> 0 is only the kappa -> infinity
+perfect-conductor sub-case (taken exactly by the lossless plasma), and
+kappa = 0 the matched no-sheet case. Tangential E and B are continuous
+at both interfaces with B = Y E for a forward wave.
 
 Two independent derivations are provided:
 
@@ -38,6 +47,7 @@ __all__ = [
     "MODULATION_NOTE",
     "absorption_volumetric",
     "dc_limit",
+    "dc_sheet",
     "drude_chi",
     "drude_epsilon",
     "fresnel_interface_reflection",
@@ -80,23 +90,33 @@ def slab_admittance_y(omega, wp2, gamma, eps_inf=1.0):
 
 
 def dc_limit(d, wp2, gamma):
-    """Analytic DC channel (eps_inf = eps_b): the slab is always
-    ELECTRICALLY thin as w -> 0 (k d ~ sqrt(w) -> 0) while Y_s ~
-    w^{-1/2} diverges, and the two compete through the finite ratio
-    k d / beta = i*kappa with kappa = d wp2 / gamma. The result is the
-    resistive-sheet limit
-
-        r(0) = -kappa / (2 + kappa),   t(0) = 2 / (2 + kappa),
-
-    the thin-sheet sub-case of which (kappa -> infinity, thick/good
-    conductor) recovers r -> -1. With wp2 = 0, kappa = 0 gives the
-    matched values r = 0, t = 1."""
+    """Analytic DC scattering amplitudes (eps_inf = eps_b): the
+    resistive-sheet limit r(0) = -kappa/(2+kappa), t(0) = 2/(2+kappa)
+    with kappa = d wp2 / gamma. gamma = 0 takes the kappa -> infinity
+    perfect-conductor sub-case (r = -1, t = 0); wp2 = 0 gives the
+    matched sheet (kappa = 0: r = 0, t = 1)."""
     if gamma == 0.0:
-        # lossless plasma at DC: kappa -> infinity (perfect-conductor
-        # sub-case) gives full reflection
         return -1.0 + 0.0j, 0.0 + 0.0j
     kappa = d * wp2 / gamma
     return -kappa / (2.0 + kappa) + 0.0j, 2.0 / (2.0 + kappa) + 0.0j
+
+
+def dc_sheet(d, wp2, gamma):
+    """COMPLETE analytic DC channel of the resistive-sheet limit:
+    (r, t, E_inside, A) with E_inside(0) = 2/(2+kappa) constant across
+    the electrically-thin slab and the DC dissipation fraction
+    A(0) = 4 kappa/(2+kappa)^2 (equal to 1 - R - T of the sheet
+    scattering). Degeneracies: kappa -> inf (lossless plasma or
+    thick/good conductor) gives (r, t, E, A) = (-1, 0, 0, 0); kappa = 0
+    gives the matched (0, 1, 1, 0)."""
+    if gamma == 0.0:
+        return (-1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j, 0.0)
+    kappa = d * wp2 / gamma
+    r = -kappa / (2.0 + kappa)
+    t = 2.0 / (2.0 + kappa)
+    e_in = 2.0 / (2.0 + kappa)
+    a = 4.0 * kappa / (2.0 + kappa) ** 2
+    return (r + 0.0j, t + 0.0j, e_in + 0.0j, a)
 
 
 def slab_admittance(omega, d, wp2, gamma, eps_b=1.0, eps_inf=1.0):
@@ -139,8 +159,11 @@ def slab_boundary_solve(omega, d, wp2, gamma, eps_b=1.0, eps_inf=1.0):
         Y_s (x e^{i kd} - y) = Y_b t           (B at z = d)
 
     Solved by linear solves (no explicit inverses). Returns
-    (r, t, a_plus, a_minus, cond) with a_minus = y e^{i kd}; the DC
-    grid point takes the analytic limit (a+ = a- = 0, r = -1, t = 0)."""
+    (r, t, a_plus, a_minus, cond) with a_minus = y e^{i kd}. The DC
+    point takes the analytic sheet limit; the a+/- values there are
+    CANONICAL THIN-LIMIT REPRESENTATIVES (a+ = a- = E_inside/2 — the
+    split is undetermined in the electrically-thin limit), NOT solved
+    field values; use dc_sheet for the DC channel semantics."""
     om = np.asarray(omega, dtype=float)
     Y_s = slab_admittance_y(om, wp2, gamma, eps_inf)
     Y_b = np.sqrt(eps_b + 0j) * np.ones_like(Y_s)
@@ -152,8 +175,9 @@ def slab_boundary_solve(omega, d, wp2, gamma, eps_b=1.0, eps_inf=1.0):
     cond = np.empty(om.shape, dtype=float)
     for i in range(om.size):
         if om[i] == 0.0:
-            r0, t0 = dc_limit(d, wp2, gamma)
-            r[i], t[i], a_p[i], a_m[i] = r0, t0, 0.0j, 0.0j
+            r0, t0, e_in, _a0 = dc_sheet(d, wp2, gamma)
+            r[i], t[i] = r0, t0
+            a_p[i] = a_m[i] = 0.5 * e_in   # canonical thin-limit halves
             cond[i] = 1.0
             continue
         e_d = np.exp(1j * k[i] * d)
@@ -182,6 +206,11 @@ def absorption_volumetric(omega, a_p, a_m, k, d, wp2, gamma,
     om = np.asarray(omega, dtype=float)
     chi_im = np.imag(drude_chi(np.where(om == 0.0, np.nan, om),
                                wp2, gamma))
+    # at w = 0 exactly, w Im(chi) -> wp2/gamma and the internal field is
+    # the constant sheet value: the integral reduces to the analytic DC
+    # dissipation fraction A(0) = 4 kappa/(2+kappa)^2
+    dc_a = np.array([dc_sheet(d, wp2, gamma)[3]
+                     if w == 0.0 else 0.0 for w in np.atleast_1d(om)])
     p = np.real(k)
     q = np.imag(k)
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -202,8 +231,9 @@ def absorption_volumetric(omega, a_p, a_m, k, d, wp2, gamma,
                              (np.exp(2j * p * d) - 1.0) / (2j * p))
         term3 = 2.0 * np.real(c * ratio)
         vol = chi_im * om * 0.5 * (term1 + term2 + term3)
-    vol = np.where(om == 0.0, 0.0, np.real(vol))
-    return vol / (0.5 * float(np.real(np.sqrt(eps_b + 0j))))
+    flux = 0.5 * float(np.real(np.sqrt(eps_b + 0j)))
+    vol = np.where(om == 0.0, dc_a * flux, np.real(vol))
+    return vol / flux
 
 
 def fresnel_interface_reflection(omega, wp2, gamma, eps_b=1.0,

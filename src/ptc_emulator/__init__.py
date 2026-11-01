@@ -31,6 +31,7 @@ from .drude import (
 from .drude_slab import (
     absorption_volumetric,
     dc_limit,
+    dc_sheet,
     drude_chi,
     drude_epsilon,
     fresnel_interface_reflection,
@@ -53,7 +54,7 @@ from .drude_maxwell import (
     static_matrix,
 )
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 __all__ = [
     "MODULATION_FORM",
@@ -86,6 +87,7 @@ __all__ = [
     "static_matrix",
     "absorption_volumetric",
     "dc_limit",
+    "dc_sheet",
     "drude_chi",
     "drude_epsilon",
     "fresnel_interface_reflection",
