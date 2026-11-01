@@ -90,11 +90,16 @@ def slab_admittance_y(omega, wp2, gamma, eps_inf=1.0):
 
 
 def dc_limit(d, wp2, gamma):
-    """Analytic DC scattering amplitudes (eps_inf = eps_b): the
+    """Analytic DC scattering amplitudes (CONTRACT: eps_inf = eps_b = 1;
+    general backgrounds are not covered by this sheet formula). The
     resistive-sheet limit r(0) = -kappa/(2+kappa), t(0) = 2/(2+kappa)
-    with kappa = d wp2 / gamma. gamma = 0 takes the kappa -> infinity
-    perfect-conductor sub-case (r = -1, t = 0); wp2 = 0 gives the
-    matched sheet (kappa = 0: r = 0, t = 1)."""
+    with kappa = d wp2 / gamma. Degeneracy precedence is by KAPPA: an
+    exactly vanishing sheet (d = 0 or wp2 = 0, any gamma) is the
+    matched/no-sheet case (0, 1) BEFORE the lossless-plasma branch;
+    d wp2 > 0 with gamma = 0 takes the kappa -> infinity
+    perfect-conductor sub-case (-1, 0)."""
+    if d == 0.0 or wp2 == 0.0:
+        return 0.0 + 0.0j, 1.0 + 0.0j
     if gamma == 0.0:
         return -1.0 + 0.0j, 0.0 + 0.0j
     kappa = d * wp2 / gamma
@@ -102,13 +107,16 @@ def dc_limit(d, wp2, gamma):
 
 
 def dc_sheet(d, wp2, gamma):
-    """COMPLETE analytic DC channel of the resistive-sheet limit:
-    (r, t, E_inside, A) with E_inside(0) = 2/(2+kappa) constant across
-    the electrically-thin slab and the DC dissipation fraction
-    A(0) = 4 kappa/(2+kappa)^2 (equal to 1 - R - T of the sheet
-    scattering). Degeneracies: kappa -> inf (lossless plasma or
-    thick/good conductor) gives (r, t, E, A) = (-1, 0, 0, 0); kappa = 0
-    gives the matched (0, 1, 1, 0)."""
+    """COMPLETE analytic DC channel of the resistive-sheet limit
+    (CONTRACT: eps_inf = eps_b = 1): (r, t, E_inside, A) with
+    E_inside(0) = 2/(2+kappa) constant across the electrically-thin slab
+    and the DC dissipation fraction A(0) = 4 kappa/(2+kappa)^2 (equal to
+    1 - R - T of the sheet scattering). Degeneracy precedence is by
+    KAPPA: d = 0 or wp2 = 0 (any gamma) gives the matched/no-sheet
+    (0, 1, 1, 0) BEFORE the lossless branch; d wp2 > 0 with gamma = 0
+    (lossless plasma, kappa -> inf) gives (-1, 0, 0, 0)."""
+    if d == 0.0 or wp2 == 0.0:
+        return (0.0 + 0.0j, 1.0 + 0.0j, 1.0 + 0.0j, 0.0)
     if gamma == 0.0:
         return (-1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j, 0.0)
     kappa = d * wp2 / gamma

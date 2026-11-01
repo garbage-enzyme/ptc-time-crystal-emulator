@@ -167,3 +167,26 @@ def test_dc_degeneracies():
     r0, t0, e0, a0 = ds.dc_sheet(1.0, 0.0, GAMMA)
     assert abs(r0) <= 1e-15 and abs(t0 - 1.0) <= 1e-15 \
         and abs(e0 - 1.0) <= 1e-15 and a0 == 0.0
+
+
+def test_dc_crossed_degeneracies_via_entry_points():
+    """M3-r1 review: the zero-sheet degeneracies (d = 0 or wp2 = 0, any
+    gamma) must take precedence over the lossless-plasma branch —
+    (d, wp2, gamma) = (0, 1, 0) and (1, 0, 0) are matched (r, t) =
+    (0, 1), verified through BOTH public scattering entry points and
+    the volumetric absorption, not only the helpers."""
+    for d, wp2, gam in ((0.0, 1.0, 0.0), (1.0, 0.0, 0.0),
+                        (0.0, 1.0, 0.1), (1.0, 0.0, 0.1)):
+        om0 = np.array([0.0])
+        r_a, t_a = ds.slab_admittance(om0, d, wp2, gam)
+        r_b, t_b, ap, am, _c = ds.slab_boundary_solve(om0, d, wp2, gam)
+        k0 = ds.slab_k(om0, wp2, gam)
+        a_vol = ds.absorption_volumetric(om0, ap, am, k0, d, wp2, gam)[0]
+        assert abs(r_a[0]) <= 1e-15 and abs(t_a[0] - 1.0) <= 1e-15
+        assert abs(r_b[0]) <= 1e-15 and abs(t_b[0] - 1.0) <= 1e-15
+        assert a_vol == 0.0
+        assert ds.dc_limit(d, wp2, gam) == (0.0 + 0j, 1.0 + 0j)
+        assert ds.dc_sheet(d, wp2, gam) == (0.0 + 0j, 1.0 + 0j,
+                                            1.0 + 0j, 0.0)
+    # genuine lossless plasma (d wp2 > 0, gamma = 0) still reflects fully
+    assert ds.dc_limit(1.0, 1.0, 0.0) == (-1.0 + 0j, 0.0 + 0j)
