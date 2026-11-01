@@ -174,7 +174,7 @@ def leggauss_local(order):
 def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
                      h=0.025, t_end=320.0, rtol=1e-10, atol=1e-12,
                      ramp=60.0, sigma_max=8.0, sponge_start=4.0,
-                     sponge_width=4.0, N=8, K_periods=16):
+                     sponge_width=4.0, N=8, K_periods=None):
     """Method B: independent time-domain route (stable formulation).
 
     Sponge-damped method-of-lines (DOP853): smooth quadratic absorbing
@@ -228,8 +228,14 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
             return np.concatenate([dE, dB, dS])
         return rhs
 
+    n_idx, w = channel_frequencies(w0, Omega, N)
+    if K_periods is None:
+        # adaptive: keep the carrier's conjugate mirror (at -w0) at
+        # least six Hann halfwidths from every channel
+        mirror_min = float(np.min(np.abs(w + w0)))
+        K_periods = max(16, 4 * int(np.ceil(6.0 * Omega / mirror_min)))
     T_period = 2 * np.pi / Omega
-    t_probe0 = t_end - (K_periods + 0.5) * T_period
+    t_probe0 = max(t_end - (K_periods + 0.5) * T_period, ramp + 1.0)
     # K is large enough that the Hann mainlobe (halfwidth ~ 2/KT)
     # separates every channel from the conjugate mirror of the strong
     # carrier (the mirror sits 2 w_n from channel n; K = 16 gives
@@ -245,7 +251,6 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
             raise RuntimeError("time-domain %s run failed: %s"
                                % (tag, sol.message))
         out[tag] = sol.y
-    n_idx, w = channel_frequencies(w0, Omega, N)
     # by linearity the probe differences isolate the slab scattering
     refl = out["slab"][i_lp] - out["ref"][i_lp]
     tdiff_sig = out["slab"][i_rp] - out["ref"][i_rp]
