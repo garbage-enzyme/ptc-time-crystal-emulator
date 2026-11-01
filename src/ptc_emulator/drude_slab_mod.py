@@ -172,7 +172,7 @@ def leggauss_local(order):
     return np.polynomial.legendre.leggauss(order)
 
 def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
-                     h=0.025, t_end=320.0, rtol=1e-10, atol=1e-12,
+                     h=0.008, t_end=320.0, rtol=1e-10, atol=1e-12,
                      ramp=60.0, sigma_max=8.0, sponge_start=4.0,
                      sponge_width=4.0, N=8, K_periods=None):
     """Method B: independent time-domain route (stable formulation).
@@ -194,6 +194,7 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
     n_in = int(inside.sum())
     i_lp = int(np.argmin(np.abs(z - (-3.0))))
     i_rp = int(np.argmin(np.abs(z - 4.0)))
+    z_lp, z_rp = float(z[i_lp]), float(z[i_rp])
     dist = np.abs(z - 0.5 * d)         # distance from the slab centre
     sponge = sigma_max * np.clip(
         (dist - sponge_start) / sponge_width, 0.0, 1.0) ** 2
@@ -210,6 +211,10 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
             B = y[nz:2 * nz]
             S = y[2 * nz:2 * nz + n_in]
             dE = -(np.roll(B, -1) - np.roll(B, 1)) / (2 * h)
+            # NOTE on the B convention: with this well-posed pair the
+            # state variable is B = -B_physical (the physical forward
+            # wave has khat x E = B_phys = -B_state); the Poynting flux
+            # in these variables is S_z = +E * B_state
             dB = -(np.roll(E, -1) - np.roll(E, 1)) / (2 * h)
             # boundaries: reflecting walls are harmless inside sponges
             dE[0] = dE[-1] = dB[0] = dB[-1] = 0.0
@@ -254,21 +259,44 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
     # by linearity the probe differences isolate the slab scattering
     refl = out["slab"][i_lp] - out["ref"][i_lp]
     tdiff_sig = out["slab"][i_rp] - out["ref"][i_rp]
-    rB = project_sidebands(t_eval, refl, w, K_periods, T_period)
+    rB_raw = project_sidebands(t_eval, refl, w, K_periods, T_period)
     ref_lp = project_sidebands(t_eval, out["ref"][i_lp], w,
                                K_periods, T_period)
     ref_rp = project_sidebands(t_eval, out["ref"][i_rp], w,
                                K_periods, T_period)
     i0 = int(np.argmin(np.abs(n_idx)))
-    # normalize by the CLEAN rightgoing incident amplitude measured at
-    # the RIGHT probe (the left probe sits near the source and reads
-    # its backward wave and near field; vacuum is nondispersive so the
-    # rightgoing amplitude is the same at both probes)
-    amp = abs(ref_rp[i0])
-    tB = project_sidebands(t_eval, tdiff_sig, w, K_periods, T_period) \
-        + ref_rp   # transmitted = difference + incident reference
-    return {"r": rB / amp, "t": tB / amp, "w": w, "n": n_idx,
-            "ref_amp": amp, "t_grid": t_eval}
+    # COMPLEX normalization: the n = 0 reference projection at the
+    # right probe carries the incident amplitude AND phase (the left
+    # probe reads the source's backward wave); vacuum k_n = w_n.
+    # Convention: incident unit amplitude with phase 0 at z = 0, t = 0;
+    # channel amplitudes referenced to the interface planes (r_n at
+    # z = 0, t_n at z = d) with per-channel propagation de-embedding.
+    norm = ref_rp[i0]
+    amp = abs(norm)
+    # numerical-dispersion-aware de-embedding: the centered stencil
+    # propagates vacuum modes with k_num = sin(k h)/h, so the phase
+    # factors use k_num (the mismatch over the source-to-probe distance
+    # is O(k^3 h^2 L / 6) ~ 1e-2 rad at h = 0.025 and dominates the
+    # complex error if exact k is used)
+    k_num = np.sin(w * h) / h
+    k0_num = np.sin(w0 * h) / h
+    common = np.exp(1j * k0_num * z_rp)   # reference norm phase to z = 0
+    rB = (rB_raw / norm) * np.exp(1j * k_num * z_lp) * common
+    tB_raw = project_sidebands(t_eval, tdiff_sig, w,
+                               K_periods, T_period) + ref_rp
+    tB = (tB_raw / norm) * np.exp(-1j * k_num * (z_rp - d)) * common
+    return {"r": rB, "t": tB, "w": w, "n": n_idx,
+            "ref_amp": amp, "norm": complex(norm),
+            "K": int(K_periods), "t_grid": t_eval,
+            "E_ref_lp": out["ref"][i_lp],
+            "B_ref_lp": out["ref"][nz + i_lp],
+            "E_ref_rp": out["ref"][i_rp],
+            "B_ref_rp": out["ref"][nz + i_rp],
+            "E_slab_lp": out["slab"][i_lp],
+            "B_slab_lp": out["slab"][nz + i_lp],
+            "E_slab_rp": out["slab"][i_rp],
+            "B_slab_rp": out["slab"][nz + i_rp],
+            "z_lp": float(z_lp), "z_rp": float(z_rp)}
 
 
 def project_sidebands(tt, signal, w, K_periods, T_period):

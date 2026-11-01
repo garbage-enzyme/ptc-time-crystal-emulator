@@ -55,7 +55,8 @@ def test_signed_negative_frequency_channels():
 
 
 def test_time_domain_static_regression():
-    td = dsm.time_domain_slab(W0, OM_A, 0.0, D, GAMMA, t_end=360.0)
+    td = dsm.time_domain_slab(W0, OM_A, 0.0, D, GAMMA, t_end=360.0,
+                              h=0.012)
     r_st, t_st = dsl.slab_admittance(np.array([W0]), D, 1.0, GAMMA)
     i0 = int(np.argmin(np.abs(td["n"])))
     assert abs(abs(td["r"][i0]) - abs(r_st[0])) <= 5e-3
@@ -63,7 +64,8 @@ def test_time_domain_static_regression():
 
 
 def test_time_domain_matches_harmonic():
-    td = dsm.time_domain_slab(W0, OM_A, 0.05, D, GAMMA, t_end=360.0)
+    td = dsm.time_domain_slab(W0, OM_A, 0.05, D, GAMMA, t_end=360.0,
+                              h=0.012)
     sol = dsm.modulated_slab_channels(W0, OM_A, 0.05, D, GAMMA, 8)
     band = np.abs(sol["w"]) <= 4.0
     dr = np.max(np.abs(np.abs(sol["r"][band]) - np.abs(td["r"][band])))
