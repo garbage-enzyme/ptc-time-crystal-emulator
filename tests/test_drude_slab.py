@@ -142,8 +142,9 @@ def test_dc_dissipation_consistent_with_sheet_scattering():
     assert abs(ds.absorption_volumetric(om0, ap, am, k0, d, WP2, GAMMA)[0]
                - a0) <= 1e-15
     # shrinking positive and negative frequencies converge monotonically
-    errs = []
+    per_w = []
     for w in (1e-3, 1e-4, 1e-5):
+        pair = []
         for sgn in (+1.0, -1.0):
             omw = np.array([sgn * w])
             _r, _t, ap, am, _c = ds.slab_boundary_solve(
@@ -153,8 +154,9 @@ def test_dc_dissipation_consistent_with_sheet_scattering():
             r_w, t_w = ds.slab_admittance(omw, d, WP2, GAMMA)
             assert abs(a - (1 - abs(r_w[0]) ** 2 - abs(t_w[0]) ** 2)) \
                 <= 1e-9
-            errs.append(abs(a - a0))
-    assert errs[0] > errs[1] > errs[2] and errs[-1] <= 1e-6
+            pair.append(abs(a - a0))
+        per_w.append(max(pair))      # both signs match in magnitude
+    assert per_w[0] > per_w[1] > per_w[2] and per_w[2] <= 1e-6
 
 
 def test_dc_degeneracies():
