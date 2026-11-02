@@ -274,6 +274,16 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
             u_dens = (0.5 * E_in ** 2 + 0.5 * B_in ** 2
                       + 0.5 * wp2_of_t[None, :] * S_in ** 2)
             out["U_hist"] = np.trapezoid(u_dens, z_in, axis=0)
+            # v2.0 corr. 6: slab-boundary nodes for the energy budget
+            # (the vacuum nodes immediately outside the slab edges)
+            ib0 = inside_idx[0] - 1 if inside_idx[0] > 0 else 0
+            ib1 = inside_idx[-1] + 1 if inside_idx[-1] < nz - 1 else nz - 1
+            out["E_b0"] = sol.y[ib0]
+            out["B_b0"] = sol.y[nz + ib0]
+            out["E_b1"] = sol.y[ib1]
+            out["B_b1"] = sol.y[nz + ib1]
+            out["z_b0"] = float(z[ib0])
+            out["z_b1"] = float(z[ib1])
     # by linearity the probe differences isolate the slab scattering
     refl = out["slab"][i_lp] - out["ref"][i_lp]
     tdiff_sig = out["slab"][i_rp] - out["ref"][i_rp]
@@ -324,6 +334,9 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
             "z_lp": float(z_lp), "z_rp": float(z_rp),
             "S_hist": out["S_hist"], "z_in": out["z_in"],
             "U_hist": out["U_hist"],
+            "E_b0": out["E_b0"], "B_b0": out["B_b0"],
+            "E_b1": out["E_b1"], "B_b1": out["B_b1"],
+            "z_b0": out["z_b0"], "z_b1": out["z_b1"],
             "K_adaptive": int(K_adaptive),
             "h": float(h), "d": float(d), "wp2_par": float(m),
             "Om_par": float(Omega), "gamma_par": float(gamma),
