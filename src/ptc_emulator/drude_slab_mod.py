@@ -174,7 +174,8 @@ def leggauss_local(order):
 def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
                      h=0.008, t_end=320.0, rtol=1e-10, atol=1e-12,
                      ramp=60.0, sigma_max=8.0, sponge_start=4.0,
-                     sponge_width=4.0, N=8, K_periods=None):
+                     sponge_width=4.0, N=8, K_periods=None,
+                     z_probe_lp=-3.0, z_probe_rp=4.0):
     """Method B: independent time-domain route (stable formulation).
 
     Sponge-damped method-of-lines (DOP853): smooth quadratic absorbing
@@ -192,8 +193,9 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
     inside = (z > 0.0) & (z < d)
     inside_idx = np.where(inside)[0]
     n_in = int(inside.sum())
-    i_lp = int(np.argmin(np.abs(z - (-3.0))))
-    i_rp = int(np.argmin(np.abs(z - 4.0)))
+    z_in = z[inside]
+    i_lp = int(np.argmin(np.abs(z - z_probe_lp)))
+    i_rp = int(np.argmin(np.abs(z - z_probe_rp)))
     z_lp, z_rp = float(z[i_lp]), float(z[i_rp])
     dist = np.abs(z - 0.5 * d)         # distance from the slab centre
     sponge = sigma_max * np.clip(
@@ -248,6 +250,7 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
     t_eval = np.minimum(
         np.arange(t_probe0, t_end + 1e-9, T_period / 128.0), t_end)
     out = {}
+    s_hist_coarse = 8   # store every 8th interior node (d=1 slab)
     for tag, with_slab in (("ref", False), ("slab", True)):
         sol = solve_ivp(rhs_factory(with_slab), (0.0, t_end),
                         np.zeros(2 * nz + n_in), method="DOP853",
@@ -256,6 +259,10 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
             raise RuntimeError("time-domain %s run failed: %s"
                                % (tag, sol.message))
         out[tag] = sol.y
+        if with_slab:
+            # interior material state history for the independent budget
+            out["S_hist"] = sol.y[2 * nz:2 * nz + n_in]
+            out["z_in"] = z_in
     # by linearity the probe differences isolate the slab scattering
     refl = out["slab"][i_lp] - out["ref"][i_lp]
     tdiff_sig = out["slab"][i_rp] - out["ref"][i_rp]
@@ -278,8 +285,15 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
     # factors use k_num (the mismatch over the source-to-probe distance
     # is O(k^3 h^2 L / 6) ~ 1e-2 rad at h = 0.025 and dominates the
     # complex error if exact k is used)
-    k_num = np.sin(w * h) / h
-    k0_num = np.sin(w0 * h) / h
+    # centered vacuum stencil: omega = sin(k h)/h, so the propagating
+    # wavenumber of channel frequency w is arcsin(w h)/h (principal
+    # branch; real for |w h| <= pi/2 — the stencil's resolvable
+    # bandwidth). sin(w h)/h would be the REVERSE map.
+    if np.any(np.abs(w * h) > np.pi / 2):
+        raise ValueError("channel outside the stencil bandwidth "
+                         "(|w h| > pi/2)")
+    k_num = np.arcsin(w * h) / h
+    k0_num = np.arcsin(w0 * h) / h
     common = np.exp(1j * k0_num * z_rp)   # reference norm phase to z = 0
     rB = (rB_raw / norm) * np.exp(1j * k_num * z_lp) * common
     tB_raw = project_sidebands(t_eval, tdiff_sig, w,
@@ -296,7 +310,11 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
             "B_slab_lp": out["slab"][nz + i_lp],
             "E_slab_rp": out["slab"][i_rp],
             "B_slab_rp": out["slab"][nz + i_rp],
-            "z_lp": float(z_lp), "z_rp": float(z_rp)}
+            "z_lp": float(z_lp), "z_rp": float(z_rp),
+            "S_hist": out["S_hist"], "z_in": out["z_in"],
+            "h": float(h), "d": float(d), "wp2_par": float(m),
+            "Om_par": float(Omega), "gamma_par": float(gamma),
+            "w0_par": float(w0)}
 
 
 def project_sidebands(tt, signal, w, K_periods, T_period):
