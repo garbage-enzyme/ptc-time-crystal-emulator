@@ -236,12 +236,15 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
         return rhs
 
     n_idx, w = channel_frequencies(w0, Omega, N)
-    if K_periods is None:
-        # adaptive: keep the carrier's conjugate mirror (at -w0) at
-        # least six Hann halfwidths from every channel
-        mirror_min = float(np.min(np.abs(w + w0)))
-        K_periods = max(16, 4 * int(np.ceil(6.0 * Omega / mirror_min)))
     T_period = 2 * np.pi / Omega
+    if K_periods is None:
+        mirror_min = float(np.min(np.abs(w + w0)))
+        K_adaptive = max(16, 4 * int(np.ceil(6.0 * Omega / mirror_min)))
+    else:
+        K_adaptive = int(K_periods)
+    # CAPPED at available settled time (v2.0 corr. 5a)
+    settled = t_end - ramp - 2.0 * T_period
+    K_periods = max(4, min(K_adaptive, int(settled // T_period)))
     t_probe0 = max(t_end - (K_periods + 0.5) * T_period, ramp + 1.0)
     # K is large enough that the Hann mainlobe (halfwidth ~ 2/KT)
     # separates every channel from the conjugate mirror of the strong
@@ -263,6 +266,14 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
             # interior material state history for the independent budget
             out["S_hist"] = sol.y[2 * nz:2 * nz + n_in]
             out["z_in"] = z_in
+            # v2.0 corr. 5b: total stored energy U(t) in the slab
+            E_in = sol.y[:nz][inside_idx, :]
+            B_in = sol.y[nz:2 * nz][inside_idx, :]
+            S_in = sol.y[2 * nz:2 * nz + n_in]
+            wp2_of_t = 1.0 + m * np.cos(Omega * sol.t)
+            u_dens = (0.5 * E_in ** 2 + 0.5 * B_in ** 2
+                      + 0.5 * wp2_of_t[None, :] * S_in ** 2)
+            out["U_hist"] = np.trapezoid(u_dens, z_in, axis=0)
     # by linearity the probe differences isolate the slab scattering
     refl = out["slab"][i_lp] - out["ref"][i_lp]
     tdiff_sig = out["slab"][i_rp] - out["ref"][i_rp]
@@ -289,9 +300,9 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
     # wavenumber of channel frequency w is arcsin(w h)/h (principal
     # branch; real for |w h| <= pi/2 — the stencil's resolvable
     # bandwidth). sin(w h)/h would be the REVERSE map.
-    if np.any(np.abs(w * h) > np.pi / 2):
-        raise ValueError("channel outside the stencil bandwidth "
-                         "(|w h| > pi/2)")
+    if np.any(np.abs(w * h) > 1.0):
+        raise ValueError("channel outside the arcsin domain "
+                         "(|w h| > 1)")
     k_num = np.arcsin(w * h) / h
     k0_num = np.arcsin(w0 * h) / h
     common = np.exp(1j * k0_num * z_rp)   # reference norm phase to z = 0
@@ -312,6 +323,8 @@ def time_domain_slab(w0, Omega, m, d, gamma, z_min=-8.0, z_max=10.0,
             "B_slab_rp": out["slab"][nz + i_rp],
             "z_lp": float(z_lp), "z_rp": float(z_rp),
             "S_hist": out["S_hist"], "z_in": out["z_in"],
+            "U_hist": out["U_hist"],
+            "K_adaptive": int(K_adaptive),
             "h": float(h), "d": float(d), "wp2_par": float(m),
             "Om_par": float(Omega), "gamma_par": float(gamma),
             "w0_par": float(w0)}
